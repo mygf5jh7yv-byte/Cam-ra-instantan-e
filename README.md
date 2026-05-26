@@ -1,1 +1,0 @@
-# Cam-ra-instantan-e
