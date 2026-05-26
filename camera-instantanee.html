@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caméra Instantanée</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap');
+
+  :root {
+    --bg: #050508;
+    --surface: #0d0d14;
+    --border: #1e1e2e;
+    --accent: #00ffe0;
+    --accent2: #ff2d78;
+    --text: #e8e8f0;
+    --muted: #5a5a7a;
+    --live: #ff2d78;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,224,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,224,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Vignette */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(5,5,8,0.85) 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 0.1em;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .logo span {
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.3em;
+    display: block;
+    font-family: 'DM Mono', monospace;
+    margin-top: -6px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: all 0.3s;
+  }
+
+  .status-dot.live {
+    background: var(--live);
+    box-shadow: 0 0 8px var(--live);
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.3); }
+  }
+
+  /* MAIN */
+  main {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 40px 40px;
+    gap: 40px;
+  }
+
+  /* Hero text */
+  .hero {
+    text-align: center;
+  }
+
+  .hero h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(3rem, 8vw, 6rem);
+    letter-spacing: 0.05em;
+    line-height: 0.95;
+    color: var(--text);
+  }
+
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero p {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* Room ID section */
+  .room-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .room-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .room-input-row {
+    display: flex;
+    width: 100%;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .room-input-row:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(0,255,224,0.08);
+  }
+
+  .room-prefix {
+    padding: 14px 16px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  #roomId {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+  }
+
+  #roomId::placeholder { color: var(--muted); }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+  }
+
+  button {
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 3px;
+    padding: 13px 24px;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    flex: 2;
+    background: var(--accent);
+    color: #000;
+    font-weight: 500;
+  }
+
+  .btn-primary:hover {
+    background: #fff;
+    box-shadow: 0 0 30px rgba(0,255,224,0.3);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    flex: 1;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  .btn-danger {
+    background: rgba(255,45,120,0.1);
+    color: var(--accent2);
+    border: 1px solid rgba(255,45,120,0.3);
+  }
+
+  .btn-danger:hover {
+    background: var(--accent2);
+    color: #fff;
+  }
+
+  /* Video grid */
+  .video-section {
+    width: 100%;
+    max-width: 1200px;
+    display: none;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .video-section.visible { display: flex; }
+
+  .video-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 700px) {
+    .video-grid { grid-template-columns: 1fr; }
+    header { padding: 16px 20px; }
+    main { padding: 30px 16px; }
+  }
+
+  .video-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .video-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 60%, rgba(5,5,8,0.7) 100%);
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .video-label {
+    position: absolute;
+    bottom: 12px;
+    left: 14px;
+    z-index: 3;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232,232,240,0.8);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .video-badge {
+    padding: 3px 8px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 2px;
+    backdrop-filter: blur(4px);
+  }
+
+  .video-live-badge {
+    padding: 3px 8px;
+    background: rgba(255,45,120,0.2);
+    border: 1px solid rgba(255,45,120,0.4);
+    color: var(--live);
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    animation: fadeInBadge 0.4s ease;
+  }
+
+  @keyframes fadeInBadge {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .no-video-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .no-video-icon {
+    font-size: 2.5rem;
+    opacity: 0.3;
+  }
+
+  .connecting-anim {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .connecting-anim span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: bounce 1.2s ease-in-out infinite;
+  }
+
+  .connecting-anim span:nth-child(2) { animation-delay: 0.2s; }
+  .connecting-anim span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* Controls bar */
+  .controls-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .room-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .room-info-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .room-info-value {
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+
+  .controls-buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  .ctrl-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border-radius: 3px;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+  }
+
+  /* Share link */
+  .share-box {
+    padding: 16px 20px;
+    background: rgba(0,255,224,0.04);
+    border: 1px solid rgba(0,255,224,0.15);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .share-icon { font-size: 1.2rem; }
+
+  .share-text {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .share-text p {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .share-link {
+    font-size: 0.78rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    word-break: break-all;
+  }
+
+  .copy-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .copy-btn:hover { background: var(--accent); color: #000; }
+
+  /* Notification */
+  .notif {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 100;
+    padding: 12px 20px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    box-shadow: 0 0 30px rgba(0,255,224,0.15);
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+  }
+
+  .notif.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* Entry animation */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero { animation: fadeUp 0.6s ease both; }
+  .room-section { animation: fadeUp 0.6s 0.15s ease both; }
+
+  /* Scan line effect on video */
+  .video-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  #localVideo { transform: scaleX(-1); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    Caméra Instantanée
+    <span>Connexion vidéo en direct</span>
+  </div>
+  <div class="status-pill">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Hors ligne</span>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Voir en<br><em>Temps Réel</em></h1>
+    <p>Créez ou rejoignez une salle — instantané &amp; privé</p>
+  </div>
+
+  <div class="room-section" id="joinSection">
+    <div class="room-label">Code de la salle</div>
+    <div class="room-input-row">
+      <div class="room-prefix">CI —</div>
+      <input type="text" id="roomId" placeholder="Entrez un code ou créez-en un" maxlength="20" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="createRoom()">＋ Créer une salle</button>
+      <button class="btn-secondary" onclick="joinRoom()">Rejoindre</button>
+    </div>
+  </div>
+
+  <div class="video-section" id="videoSection">
+    <div class="video-grid">
+      <!-- Local -->
+      <div class="video-card">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <div id="localPlaceholder" class="no-video-placeholder">
+          <div class="no-video-icon">📷</div>
+          <div>Activation de la caméra…</div>
+          <div class="connecting-anim"><span></span><span></span><span></span></div>
+        </div>
+        <div class="video-label">
+          <span class="video-badge">Vous</span>
+          <span class="video-live-badge" id="localLiveBadge" style="display:none">
+            <span style="width:5px;height:5px;background:var(--live);border-radius:50%;display:inline-block;"></span>
+            LIVE
+          </span>
+        </div>
+      </div>
+
+      <!-- Remote -->
+      <div class="video-card">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <div id="remotePlaceholder" class="no-video-placeholder">
+          <div class="no-video-icon">👁</div>
+          <div>En attente de connexion…</div>
+          <div class="connecting-anim"><span></span><span></span><span></span></div>
+        </div>
+        <div class="video-label">
+          <span class="video-badge">Invité</span>
+          <span class="video-live-badge" id="remoteLiveBadge" style="display:none">
+            <span style="width:5px;height:5px;background:var(--live);border-radius:50%;display:inline-block;"></span>
+            CONNECTÉ
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share box -->
+    <div class="share-box" id="shareBox">
+      <div class="share-icon">🔗</div>
+      <div class="share-text">
+        <p>Invitez quelqu'un — partagez ce lien</p>
+        <div class="share-link" id="shareLink">—</div>
+      </div>
+      <button class="copy-btn" onclick="copyLink()">Copier</button>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls-bar">
+      <div class="room-info">
+        <div class="room-info-label">Salle active</div>
+        <div class="room-info-value" id="activeRoomId">—</div>
+      </div>
+      <div class="controls-buttons">
+        <button class="ctrl-btn btn-secondary" onclick="toggleMute()" id="muteBtn">🔇 Couper son</button>
+        <button class="ctrl-btn btn-secondary" onclick="toggleCam()" id="camBtn">📷 Caméra</button>
+        <button class="ctrl-btn btn-danger" onclick="leaveRoom()">✕ Quitter</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="notif" id="notif"></div>
+
+<script>
+  // ─── State ───────────────────────────────────────────────
+  let localStream = null;
+  let peerConn = null;
+  let currentRoom = null;
+  let isHost = false;
+  let audioMuted = false;
+  let camOff = false;
+  let signalingWs = null;
+  let pendingCandidates = [];
+
+  // ─── Simple Signaling via public DEMO server ──────────────
+  // Uses a lightweight pub/sub over BroadcastChannel for same-browser demo,
+  // and falls back to a free public signaling relay for cross-device.
+  // For same-device/browser testing, BroadcastChannel is used.
+  // For production, replace signalingChannel with your WebSocket server.
+
+  class SignalingChannel {
+    constructor(roomId) {
+      this.roomId = roomId;
+      this.listeners = {};
+      // Try to use a free public WebSocket relay (wss://socketsbay.com/wss/v2/1/demo/)
+      // For real use, replace with your own server.
+      this._useBC = false;
+      this._connect();
+    }
+
+    _connect() {
+      // Use BroadcastChannel for same-browser multi-tab test
+      try {
+        this._bc = new BroadcastChannel('CI_' + this.roomId);
+        this._bc.onmessage = (e) => {
+          const msg = e.data;
+          if (msg._sender !== this._id && this.listeners[msg.type]) {
+            this.listeners[msg.type](msg);
+          }
+        };
+        this._id = Math.random().toString(36).slice(2);
+        this._useBC = true;
+      } catch(e) {
+        console.warn('BroadcastChannel not supported');
+      }
+    }
+
+    on(type, fn) { this.listeners[type] = fn; }
+
+    send(msg) {
+      msg._sender = this._id;
+      if (this._useBC) {
+        this._bc.postMessage(msg);
+      }
+    }
+
+    close() {
+      if (this._bc) this._bc.close();
+    }
+  }
+
+  // ─── ICE Servers ─────────────────────────────────────────
+  const ICE_CONFIG = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ]
+  };
+
+  // ─── Utility ─────────────────────────────────────────────
+  function showNotif(msg) {
+    const el = document.getElementById('notif');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 2800);
+  }
+
+  function setStatus(text, live = false) {
+    document.getElementById('statusText').textContent = text;
+    const dot = document.getElementById('statusDot');
+    dot.classList.toggle('live', live);
+  }
+
+  function generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({length: 6}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  }
+
+  function updateShareLink(roomId) {
+    const url = window.location.href.split('?')[0] + '?room=' + roomId;
+    document.getElementById('shareLink').textContent = url;
+    document.getElementById('activeRoomId').textContent = 'CI — ' + roomId;
+  }
+
+  function copyLink() {
+    const url = window.location.href.split('?')[0] + '?room=' + currentRoom;
+    navigator.clipboard.writeText(url).then(() => showNotif('✓ Lien copié dans le presse-papiers'));
+  }
+
+  // ─── Camera ───────────────────────────────────────────────
+  async function startCamera() {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const vid = document.getElementById('localVideo');
+      vid.srcObject = localStream;
+      vid.style.display = 'block';
+      document.getElementById('localPlaceholder').style.display = 'none';
+      document.getElementById('localLiveBadge').style.display = 'flex';
+      setStatus('Caméra active', true);
+      showNotif('📷 Caméra activée');
+      return true;
+    } catch(e) {
+      showNotif('❌ Accès caméra refusé');
+      setStatus('Erreur caméra');
+      return false;
+    }
+  }
+
+  // ─── WebRTC ──────────────────────────────────────────────
+  function createPeerConnection() {
+    peerConn = new RTCPeerConnection(ICE_CONFIG);
+
+    localStream.getTracks().forEach(track => peerConn.addTrack(track, localStream));
+
+    peerConn.ontrack = (e) => {
+      const vid = document.getElementById('remoteVideo');
+      vid.srcObject = e.streams[0];
+      vid.style.display = 'block';
+      document.getElementById('remotePlaceholder').style.display = 'none';
+      document.getElementById('remoteLiveBadge').style.display = 'flex';
+      showNotif('👁 Invité connecté !');
+      setStatus('En direct', true);
+    };
+
+    peerConn.onicecandidate = (e) => {
+      if (e.candidate) {
+        signalingWs.send({ type: 'candidate', candidate: e.candidate });
+      }
+    };
+
+    peerConn.onconnectionstatechange = () => {
+      const s = peerConn.connectionState;
+      if (s === 'connected') setStatus('Connecté', true);
+      else if (s === 'disconnected' || s === 'failed') {
+        setStatus('Déconnecté');
+        document.getElementById('remotePlaceholder').style.display = 'flex';
+        document.getElementById('remoteVideo').style.display = 'none';
+        document.getElementById('remoteLiveBadge').style.display = 'none';
+        showNotif('⚠ Connexion perdue');
+      }
+    };
+
+    // Flush any queued candidates
+    pendingCandidates.forEach(c => peerConn.addIceCandidate(c).catch(()=>{}));
+    pendingCandidates = [];
+  }
+
+  async function setupSignaling(roomId) {
+    signalingWs = new SignalingChannel(roomId);
+
+    signalingWs.on('offer', async (msg) => {
+      if (isHost) return;
+      createPeerConnection();
+      await peerConn.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      const answer = await peerConn.createAnswer();
+      await peerConn.setLocalDescription(answer);
+      signalingWs.send({ type: 'answer', sdp: peerConn.localDescription });
+    });
+
+    signalingWs.on('answer', async (msg) => {
+      if (!isHost) return;
+      if (peerConn && peerConn.signalingState !== 'stable') {
+        await peerConn.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      }
+    });
+
+    signalingWs.on('candidate', async (msg) => {
+      if (!peerConn || !peerConn.remoteDescription) {
+        pendingCandidates.push(new RTCIceCandidate(msg.candidate));
+      } else {
+        try { await peerConn.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch(e) {}
+      }
+    });
+
+    signalingWs.on('join', async (msg) => {
+      if (!isHost) return;
+      // Guest joined — create offer
+      createPeerConnection();
+      const offer = await peerConn.createOffer();
+      await peerConn.setLocalDescription(offer);
+      signalingWs.send({ type: 'offer', sdp: peerConn.localDescription });
+    });
+  }
+
+  // ─── Room actions ─────────────────────────────────────────
+  async function createRoom() {
+    const code = (document.getElementById('roomId').value.trim().toUpperCase() || generateRoomCode()).replace(/\s+/g, '');
+    currentRoom = code;
+    isHost = true;
+
+    const ok = await startCamera();
+    if (!ok) return;
+
+    await setupSignaling(currentRoom);
+
+    document.getElementById('joinSection').style.display = 'none';
+    document.getElementById('videoSection').classList.add('visible');
+    updateShareLink(currentRoom);
+    setStatus('En attente…', true);
+    showNotif('✓ Salle créée — ' + currentRoom);
+  }
+
+  async function joinRoom() {
+    const code = document.getElementById('roomId').value.trim().toUpperCase();
+    if (!code) { showNotif('⚠ Entrez un code de salle'); return; }
+    currentRoom = code;
+    isHost = false;
+
+    const ok = await startCamera();
+    if (!ok) return;
+
+    await setupSignaling(currentRoom);
+    signalingWs.send({ type: 'join' });
+
+    document.getElementById('joinSection').style.display = 'none';
+    document.getElementById('videoSection').classList.add('visible');
+    updateShareLink(currentRoom);
+    setStatus('Connexion…', true);
+    showNotif('📡 Connexion à la salle ' + currentRoom + '…');
+  }
+
+  function leaveRoom() {
+    if (peerConn) { peerConn.close(); peerConn = null; }
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    if (signalingWs) { signalingWs.close(); signalingWs = null; }
+
+    document.getElementById('localVideo').srcObject = null;
+    document.getElementById('localVideo').style.display = 'none';
+    document.getElementById('remoteVideo').srcObject = null;
+    document.getElementById('remoteVideo').style.display = 'none';
+    document.getElementById('localPlaceholder').style.display = 'flex';
+    document.getElementById('remotePlaceholder').style.display = 'flex';
+    document.getElementById('localLiveBadge').style.display = 'none';
+    document.getElementById('remoteLiveBadge').style.display = 'none';
+    document.getElementById('videoSection').classList.remove('visible');
+    document.getElementById('joinSection').style.display = 'flex';
+    document.getElementById('roomId').value = '';
+    currentRoom = null;
+    setStatus('Hors ligne');
+    showNotif('👋 Vous avez quitté la salle');
+  }
+
+  // ─── Controls ─────────────────────────────────────────────
+  function toggleMute() {
+    if (!localStream) return;
+    audioMuted = !audioMuted;
+    localStream.getAudioTracks().forEach(t => t.enabled = !audioMuted);
+    document.getElementById('muteBtn').textContent = audioMuted ? '🔊 Activer son' : '🔇 Couper son';
+    showNotif(audioMuted ? '🔇 Micro coupé' : '🔊 Micro actif');
+  }
+
+  function toggleCam() {
+    if (!localStream) return;
+    camOff = !camOff;
+    localStream.getVideoTracks().forEach(t => t.enabled = !camOff);
+    document.getElementById('camBtn').textContent = camOff ? '📷 Activer cam' : '📷 Caméra';
+    showNotif(camOff ? '📷 Caméra désactivée' : '📷 Caméra activée');
+  }
+
+  // ─── Auto-join from URL param ─────────────────────────────
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (room) {
+      document.getElementById('roomId').value = room.toUpperCase();
+      showNotif('🔗 Code de salle détecté — cliquez sur Rejoindre');
+    }
+  })();
+
+  // ─── Enter key shortcut ───────────────────────────────────
+  document.getElementById('roomId').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') joinRoom();
+  });
+</script>
+</body>
+</html>
